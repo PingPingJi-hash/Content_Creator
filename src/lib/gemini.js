@@ -40,7 +40,7 @@ You MUST return the output ONLY as a raw JSON object with the following structur
 export async function generateContent(idea, platforms) {
   try {
     const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-Flash' }); // Using 3.5 for high quality
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' }); // Using 3.5 for high quality
     
     const userPrompt = `
     Raw Idea/Objective: ${idea}
