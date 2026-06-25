@@ -137,3 +137,73 @@ export async function generateContent(payload) {
     throw error;
   }
 }
+export async function generateContent(payload) {
+  const genAI = getGenAI();
+  
+  // Construct the comprehensive prompt
+  const userPrompt = `
+  === CAMPAIGN INFO ===
+  Objective: ${payload.objective}
+  Headline / Key Agenda: ${payload.key_agenda}
+  Key Message & Context: ${payload.idea}
+  Content Pillar: ${payload.content_pillar}
+  Funnel Stage: ${payload.funnel_stage}
+  Ads Strategy / Targeting: ${payload.ads_strategy}
+  Target Audience: ${payload.target_audience}
+  Call To Action (CTA): ${payload.cta}
+  Precautions / Things to be careful about: ${payload.precautions}
+  
+  Target Platforms: ${payload.platforms.join(', ')}
+  
+  Based on the above context, please generate the Topic, Captions, short English Artwork Wording, and Master Image Prompt (4:5 poster style).
+  Return ONLY a valid JSON string.
+  `;
+
+  // List of models to try as fallbacks to handle 503 High Demand errors
+  // Excluded 1.5 as per user instructions
+  const fallbackModels = [
+    'gemini-3.5-flash', 
+    'gemini-2.5-flash', 
+    'gemini-3.1-flash-lite',
+    'gemini-2.0-flash'
+  ];
+  
+  let lastError = null;
+
+  for (const modelName of fallbackModels) {
+    try {
+      console.log(`Attempting generation with model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      
+      const result = await model.generateContent({
+        contents: [
+          { role: 'user', parts: [{ text: NEXZA_CI_SYSTEM_PROMPT }] },
+          { role: 'model', parts: [{ text: "Understood. I will strictly follow the Nexza CI guidelines, output a 4:5 poster prompt, and return only a JSON object."}] },
+          { role: 'user', parts: [{ text: userPrompt }] }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          responseMimeType: "application/json"
+        }
+      });
+
+      const responseText = result.response.text();
+      const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(jsonString);
+
+    } catch (error) {
+      console.warn(`Model ${modelName} failed:`, error.message);
+      lastError = error;
+      // If it's a 503 error, or 404/400 (model not found/invalid name format), we try the next model
+      if (error.message.includes('503') || error.message.includes('400') || error.message.includes('404')) {
+        continue;
+      }
+      // If it's another error (like auth failed), throw immediately
+      throw error;
+    }
+  }
+
+  // If all models failed, throw the last error
+  console.error("All fallback models failed.");
+  throw lastError;
+}
