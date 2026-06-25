@@ -11,7 +11,6 @@ You are an expert B2B Marketing Copywriter and AI Art Director for "Nexza".
 Nexza is a company that provides "The Next-Level in Smart Facility Management" solutions.
 Brand characteristics: Reliable, Connected, Seamless, Intelligent Future.
 Tone of voice: Professional, B2B, Trustworthy, Modern, Tech-driven (in Thai language).
-
 Your task is to take comprehensive campaign information from the user and generate:
 1. An engaging Topic/Headline (in Thai).
 2. Captions tailored for specific platforms in Thai language.
@@ -26,7 +25,6 @@ Your task is to take comprehensive campaign information from the user and genera
    - Visual elements: Floating glassmorphism UI dashboards, connected nodes, glowing data charts.
    - Colors: Deep blue/purple backgrounds (#0a0a1a) with bright accents of Purple (#8126F4), Teal (#2BAA99), Blue (#0AACFF).
    - Allow English text: Instruct the image generator to include the "artwork_wording" elegantly within the floating UI or poster layout.
-
 You MUST return the output ONLY as a raw JSON object with the following structure. Do not include markdown code blocks like \`\`\`json.
 {
   "topic": "The generated headline in Thai",
@@ -40,46 +38,61 @@ You MUST return the output ONLY as a raw JSON object with the following structur
 }
 `;
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function generateWithRetry(model, payload, maxRetries = 3) {
+  const userPrompt = `
+=== CAMPAIGN INFO ===
+Objective: ${payload.objective}
+Headline / Key Agenda: ${payload.key_agenda}
+Key Message & Context: ${payload.idea}
+Content Pillar: ${payload.content_pillar}
+Funnel Stage: ${payload.funnel_stage}
+Ads Strategy / Targeting: ${payload.ads_strategy}
+Target Audience: ${payload.target_audience}
+Call To Action (CTA): ${payload.cta}
+Precautions / Things to be careful about: ${payload.precautions}
+
+Target Platforms: ${payload.platforms.join(', ')}
+
+Based on the above context, please generate the Topic, Captions, short English Artwork Wording, and Master Image Prompt (4:5 poster style).
+Return ONLY a valid JSON string.
+`;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await model.generateContent({
+        contents: [
+          { role: 'user', parts: [{ text: NEXZA_CI_SYSTEM_PROMPT }] },
+          { role: 'model', parts: [{ text: "Understood. I will strictly follow the Nexza CI guidelines, output a 4:5 poster prompt, and return only a JSON object."}] },
+          { role: 'user', parts: [{ text: userPrompt }] }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          responseMimeType: "application/json"
+        }
+      });
+      const responseText = result.response.text();
+      const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(jsonString);
+    } catch (error) {
+      const is503 = error?.message?.includes('503') || error?.status === 503 || error?.message?.includes('high demand') || error?.message?.includes('Service Unavailable');
+      if (is503 && attempt < maxRetries) {
+        const delay = attempt * 3000;
+        console.warn(`Gemini 503 on attempt ${attempt}/${maxRetries}. Retrying in ${delay / 1000}s...`);
+        await sleep(delay);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 export async function generateContent(payload) {
   try {
     const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
-    
-    // Construct the comprehensive prompt
-    const userPrompt = `
-    === CAMPAIGN INFO ===
-    Objective: ${payload.objective}
-    Headline / Key Agenda: ${payload.key_agenda}
-    Key Message & Context: ${payload.idea}
-    Content Pillar: ${payload.content_pillar}
-    Funnel Stage: ${payload.funnel_stage}
-    Ads Strategy / Targeting: ${payload.ads_strategy}
-    Target Audience: ${payload.target_audience}
-    Call To Action (CTA): ${payload.cta}
-    Precautions / Things to be careful about: ${payload.precautions}
-    
-    Target Platforms: ${payload.platforms.join(', ')}
-    
-    Based on the above context, please generate the Topic, Captions, short English Artwork Wording, and Master Image Prompt (4:5 poster style).
-    Return ONLY a valid JSON string.
-    `;
-
-    const result = await model.generateContent({
-      contents: [
-        { role: 'user', parts: [{ text: NEXZA_CI_SYSTEM_PROMPT }] },
-        { role: 'model', parts: [{ text: "Understood. I will strictly follow the Nexza CI guidelines, output a 4:5 poster prompt, and return only a JSON object."}] },
-        { role: 'user', parts: [{ text: userPrompt }] }
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        responseMimeType: "application/json"
-      }
-    });
-
-    const responseText = result.response.text();
-    const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonString);
-
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    return await generateWithRetry(model, payload, 3);
   } catch (error) {
     console.error("Error generating content:", error);
     throw error;
