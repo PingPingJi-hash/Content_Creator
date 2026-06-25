@@ -91,21 +91,42 @@ export default function ContentDetail({ session }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Create update payload carefully, ensuring we handle potential null/empty fields gracefully
+      // Helper to sanitize: turn empty string / undefined -> null
+      const s = (v) => (v === '' || v === undefined || v === null ? null : v);
+
       const updatePayload = {
-        topic, captions, status, image_url: imageUrl, metrics,
-        artwork_wording: artworkWording,
-        master_prompt: masterPrompt,
-        idea, key_agenda: keyAgenda, objective, content_pillar: contentPillar,
-        funnel_stage: funnelStage, ads_strategy: adsStrategy,
-        target_audience: audience, cta, precautions,
-        launch_date: launchDate || null, media_type: mediaType,
-        estimated_budget: budget, kpis
+        topic:            s(topic),
+        captions:         captions || {},
+        status:           s(status) || 'Draft',
+        image_url:        s(imageUrl),
+        metrics:          metrics || { views: 0, reach: 0, clicks: 0, engRate: '' },
+        artwork_wording:  s(artworkWording),
+        master_prompt:    s(masterPrompt),
+        idea:             s(idea),
+        key_agenda:       s(keyAgenda),
+        objective:        s(objective),
+        content_pillar:   s(contentPillar),
+        funnel_stage:     s(funnelStage),
+        ads_strategy:     s(adsStrategy),
+        target_audience:  s(audience),
+        cta:              s(cta),
+        precautions:      s(precautions),
+        launch_date:      s(launchDate),
+        media_type:       s(mediaType),
+        estimated_budget: s(budget),
+        kpis:             s(kpis),
+        updated_at:       new Date().toISOString(),
       };
 
-      const { error } = await supabase.from('content_logs').update(updatePayload).eq('id', id);
+      const { error } = await supabase
+        .from('content_logs')
+        .update(updatePayload)
+        .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', JSON.stringify(error));
+        throw error;
+      }
       alert("Saved successfully!");
     } catch (err) {
       console.error('Error saving content:', err);
