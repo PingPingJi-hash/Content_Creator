@@ -91,7 +91,7 @@ Return ONLY a valid JSON string.
 export async function generateContent(payload) {
   try {
     const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
     return await generateWithRetry(model, payload, 3);
   } catch (error) {
     console.error("Error generating content:", error);
